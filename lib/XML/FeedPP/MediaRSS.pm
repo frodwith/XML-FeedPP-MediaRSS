@@ -259,14 +259,14 @@ A list of text objects in document order, like this:
 
     {
         allow => (1|0),
-        type  => (country|uri|sharing|all|none),
-        list  => [ ... ]
+        type  => (country|uri|sharing)
+        list  => [ ... ] | 'all' | 'none'
     }
 
-    If allow is false, that means deny. If type is all or none, list will not
-    be present.
+If allow is false, that means deny.
 
 =cut
+
         if (my $restriction = $find->('restriction')) {
             my %r = (allow => $restriction->{'-relationship'} eq 'allow');
             my @list;
@@ -275,15 +275,16 @@ A list of text objects in document order, like this:
             }
 
             if (grep { $_ eq 'all' } @list) {
-                $r{type} = 'all';
+                $r{list} = 'all';
             }
             elsif (@list < 1 || grep { $_ eq 'none' } @list) {
-                $r{type} = 'none';
+                $r{list} = 'none';
             }
             else {
-                $r{type} = $restriction->{'-type'};
                 $r{list} = \@list;
             }
+            $r{type} = $restriction->{'-type'};
+            $hash{restriction} = \%r;
         }
 
 =mediakey community
@@ -309,11 +310,12 @@ Deepest only.
     }
 
 =cut
+
         if (my $community = $find->('community')) {
             my %c;
             if (my $starRating = $community->{'media:starRating'}) {
                 $c{starRating} = $make_hash->(
-                    $starRating, [], [qw(average min max)]
+                    $starRating, [], [qw(average min max count)]
                 );
             }
             if (my $stats = $community->{'media:statistics'}) {
@@ -322,7 +324,7 @@ Deepest only.
                 );
             }
             if (my $tags = $community->{'media:tags'}) {
-                for (split /,\s*/, $tags->{'#text'}) {
+                for (split /,\s*/, $tags) {
                     s/^\s+//;
                     s/\s+$//;
                     s/:\s+/:/g;
@@ -350,12 +352,12 @@ Simple list of strings.
 
 =mediakey embed
 
-Hash of key-value pairs.
+Hash of key-value pairs. Deepest only.
 
 =cut
 
         for my $embed ($find->('embed')) {
-            for my $param (@{ _force_array($embed->{'media:param'}) }) {
+            for my $param (@{ _force_array($embed, 'media:param') }) {
                 $hash{embed}{$param->{'-name'}} = $param->{'#text'};
             }
         }
@@ -383,19 +385,20 @@ Deepest only.
 =cut
 
         if (my $status = $find->('status')) {
-            $hash{status} = $make_hash->($status, [qw(state reason)], []);
+            $hash{status} = $make_hash->($status, ['state'], ['reason']);
         }
 
 =mediakey price
 
 List of pricing structures, which are hashes with the keys C<currency>
-(optional), C<info> (optional), and C<price> (optional). If none of these is
-present for a given price tag, we're going to pretend it doesn't exist.
+(optional), C<info> (optional), C<type> (optional), and C<price> (optional).
+If none of these is present for a given price tag, we're going to pretend it
+doesn't exist.
 
 =cut
 
         for my $price ($find->('price')) {
-            my $p = $make_hash->($price, [], [qw(price info currency)]);
+            my $p = $make_hash->($price, [], [qw(price info currency type)]);
             push (@{ $hash{price} }, $p) if keys %$p;
         }
 
@@ -464,8 +467,8 @@ end_time.
                 push @{$hash{scenes}}, {
                     title       => $scene->{sceneTitle},
                     description => $scene->{sceneDescription},
-                    start_time  => $scene->{startTime},
-                    end_time    => $scene->{endTime},
+                    start_time  => $scene->{sceneStartTime},
+                    end_time    => $scene->{sceneEndTime},
                 };
             }
         }
@@ -507,6 +510,12 @@ __END__
             die "18 or over" if $content->{adult};
         }
     }
+
+=head1 ALPHA
+
+This software hasn't yet been tested beyond the examples provided in the mRSS
+spec. Failing tests (even better, with patches that fix the failures) are
+very welcome! Fork and send a pull request on L</GITHUB>.
 
 =head1 DESCRIPTION
 
